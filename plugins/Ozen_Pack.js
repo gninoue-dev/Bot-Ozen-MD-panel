@@ -1754,4 +1754,361 @@ zokou(
   }
 );
 
+
+
+// ============ GAMECOUPLE ============
+// name    : gamecouple
+// desc    : Jeu de couple à 2 joueurs en chat privé
+// author  : gninoue-Dev
+// plugin  : Ozen_Pack
+const questionsGameCouple = [
+  "Cœur à prendre ?",
+  "As-tu un crush ?",
+  "Couleur favorite ?",
+  "Quelqu'un pour qui tu mourrais ?",
+  "Quelqu'un que tu détestes ?",
+  "Quelle est la pire bêtise que tu as faite par amour ?",
+  "Ton nom complet ?",
+  "As-tu déjà bu de l'alcool ?",
+  "La dernière fois que tu as pleuré, c'était quand ?",
+  "Si tu avais une chance, sortirais-tu avec moi ?",
+  "C'est quoi la date de ton anniversaire ?",
+  "Le nom de ton premier amour ?",
+  "Meilleure partie du corps selon toi ?",
+  "As-tu des vues sur quelqu'un en ce moment ?",
+  "Si tu avais 3 souhaits, quels seraient-ils ?",
+  "Tu aimes les câlins ?",
+  "Chanson préférée ?",
+  "Si tu pouvais changer quelque chose à toi-même, ce serait quoi ?",
+  "Tu es du genre dont on est fier(e) ?",
+  "Tu fumes ?",
+  "Tu es amoureux(se) ?",
+  "Tu es du genre jaloux(se) ?",
+  "Ton plus grand rêve ?",
+  "Tu aimes plus regarder un film ou lire un livre ?",
+  "As-tu déjà pensé à notre relation ?",
+  "Émission de télévision préférée ?",
+  "Tu es du genre à recommencer une bêtise ?",
+  "Tu es du genre à dire 'je t'aime' ?",
+  "Des tatouages ?",
+  "Es-tu célibataire ou pris(e) ?",
+  "Ton genre de musique ?",
+  "Ton prénom que tu aimes le plus ?",
+  "Dernier baiser, c'était quand ?",
+  "Le prénom de ta ou ton partenaire ?",
+  "Plus franc(he) – tu es réellement heureux(se) avec moi ?",
+  "Tu es du genre à être infidèle ?",
+  "Tu es du genre à être fidèle ?",
+  "Que détestes-tu le plus ?",
+  "Ton chiffre préféré ?",
+  "Quelles sont tes plus grandes erreurs ?",
+  "Ton âge ?",
+  "Aimes-tu une relation à distance ou sans distance ?",
+  "Une chose sans laquelle tu ne peux pas vivre ?",
+  "Tu es méchant(e) ?",
+  "Partie du corps préférée de ton crush ?",
+  "Tu penses quoi de l'homosexualité ?",
+  "Une chose que tu apprécies chez moi ?",
+  "Peux-tu me laisser embrasser tes lèvres ?",
+  "Veux-tu sortir avec moi ?",
+  "Tu me ferais un câlin ?",
+  "Tu as déjà embrassé quelqu'un du même sexe que toi ?",
+  "Ton plus grand regret ?",
+  "Tu es du genre à être toujours dur(e) mais tu pleures en cachette ?",
+  "Dis-moi pourquoi tu ne devrais pas m'aimer.",
+  "Dis-moi pourquoi tu devrais m'aimer.",
+  "Raconte-moi une petite chose de ton enfance qui te fait sourire.",
+  "Si on avait une journée ensemble demain, qu'aimerais-tu qu'on fasse en premier ?",
+  "Choisis : dîner aux chandelles 🌙 ou soirée cinéma 🍿 ?",
+  "Donne-moi 3 choses qui t'ont fait sourire aujourd'hui.",
+  "Si tu devais me décrire en une seule phrase, ce serait quoi ?",
+  "Raconte-moi ton repas préféré de la semaine.",
+  "Si tu pouvais avoir un superpouvoir pour une journée, ce serait lequel ?",
+  "Dis-moi une chanson qui te fait penser à moi.",
+  "Quelle est la première chose que tu feras quand on se retrouvera ?",
+  "Décris ta journée avec 3 émojis.",
+  "Si tu étais un parfum, lequel serais-tu ?",
+  "Quelle est ta série préférée du moment ?",
+  "Si on écrivait un livre ensemble, quel titre donnerais-tu ?",
+  "Quel est ton endroit préféré dans ta ville ?",
+  "Si demain tu avais l'occasion de faire quelque chose de coquin avec moi, ce serait quoi ?",
+  "Si du jour au lendemain je te disais de venir qu'on allait a l'hotel et que je voulais te faire l'amour tu accepterais ?",
+];
+
+// State global scopé par conversation
+if (!global.gameCoupleState) global.gameCoupleState = {};
+
+function getState(dest) {
+  if (!global.gameCoupleState[dest]) {
+    global.gameCoupleState[dest] = {
+      jeu_actif: false,
+      joueurs: [],          // [{ nom, sender }]
+      joueur_actuel: 0,     // index 0 ou 1
+      refus: {},            // { nom: count }
+      en_attente_reponse: false,
+      question_actuelle: null,
+    };
+  }
+  return global.gameCoupleState[dest];
+}
+
+function resetState(dest) {
+  global.gameCoupleState[dest] = {
+    jeu_actif: false,
+    joueurs: [],
+    joueur_actuel: 0,
+    refus: {},
+    en_attente_reponse: false,
+    question_actuelle: null,
+  };
+}
+
+zokou(
+  {
+    nomCom: "gamecouple",
+    categorie: "Fun",
+    reaction: "❤️",
+    desc: "Jeu de couple à 2 joueurs — questions intimes et romantiques",
+    plugin: "Ozen_Pack",
+    alias: ["gc"],
+  },
+  async (dest, zk, ops) => {
+    const { arg, repondre, sender } = ops;
+    const state = getState(dest);
+
+    // ─────────────────────────────────────────────
+    // AIDE
+    // ─────────────────────────────────────────────
+    if (arg[0] === "help") {
+      return repondre(
+        "📖 *GAMECOUPLE — Commandes*\n\n" +
+        "▶️ #gamecouple           → Démarrer une partie\n" +
+        "▶️ #gamecouple join <nom> → S'inscrire (2 joueurs)\n" +
+        "▶️ #gamecouple <numéro>   → Poser une question\n" +
+        "▶️ #gamecouple random     → Question aléatoire\n" +
+        "▶️ #gamecouple total      → Nombre de questions\n" +
+        "▶️ #gamecouple valide     → Valider la réponse ✅\n" +
+        "▶️ #gamecouple refuse     → Refuser → l'autre donne un gage ❌\n" +
+        "▶️ #gamecouple score      → Voir les scores\n" +
+        "▶️ #gamecouple end        → Terminer la partie\n"
+      );
+    }
+
+    // ─────────────────────────────────────────────
+    // TOTAL
+    // ─────────────────────────────────────────────
+    if (arg[0] === "total") {
+      return repondre(`📊 Le jeu contient *${questionsGameCouple.length}* questions disponibles.`);
+    }
+
+    // ─────────────────────────────────────────────
+    // DÉMARRAGE
+    // ─────────────────────────────────────────────
+    if (arg.length === 0) {
+      resetState(dest);
+      const s = getState(dest);
+      s.jeu_actif = true;
+      return repondre(
+        "❤️ *Bienvenue dans GameCouple !*\n\n" +
+        "📜 *Règles :*\n" +
+        "• 2 joueurs s'inscrivent avec #gamecouple join <nom>\n" +
+        "• Chacun pose une question par numéro ou au hasard\n" +
+        "• L'autre répond librement dans le chat\n" +
+        "• Celui qui a posé valide (#gamecouple valide) ou refuse (#gamecouple refuse)\n" +
+        "• Si refus → l'autre joueur donne le gage lui-même 😈\n" +
+        "• Fin de partie avec #gamecouple end\n\n" +
+        "👥 Les 2 joueurs tapent maintenant : *#gamecouple join <votre_nom>*"
+      );
+    }
+
+    // ─────────────────────────────────────────────
+    // INSCRIPTION
+    // ─────────────────────────────────────────────
+    if (arg[0] === "join") {
+      if (!state.jeu_actif) {
+        return repondre("⚠️ Aucune partie en cours. Lance d'abord *#gamecouple*");
+      }
+      if (state.joueurs.length >= 2) {
+        return repondre("⚠️ Les 2 joueurs sont déjà inscrits. La partie peut commencer !");
+      }
+
+      const nom = arg.slice(1).join(" ").trim();
+      if (!nom) return repondre("⚠️ Utilise : *#gamecouple join <ton_nom>*");
+
+      // Empêcher le même sender de s'inscrire deux fois
+      if (state.joueurs.find(j => j.sender === sender)) {
+        return repondre("⚠️ Tu es déjà inscrit(e) !");
+      }
+
+      state.joueurs.push({ nom, sender });
+      state.refus[nom] = 0;
+
+      if (state.joueurs.length === 1) {
+        return repondre(`✅ *${nom}* est inscrit(e) ! En attente du 2ème joueur...`);
+      }
+
+      // 2 joueurs inscrits → on peut commencer
+      const j1 = state.joueurs[0].nom;
+      const j2 = state.joueurs[1].nom;
+      return repondre(
+        `✅ *${nom}* est inscrit(e) !\n\n` +
+        `🎮 Les joueurs : *${j1}* vs *${j2}*\n\n` +
+        `C'est *${j1}* qui commence !\n` +
+        `Pose une question : *#gamecouple <numéro>* ou *#gamecouple random*`
+      );
+    }
+
+    // ── Vérifier que le jeu est actif et les joueurs inscrits pour la suite ──
+    if (!state.jeu_actif) {
+      return repondre("⚠️ Aucune partie en cours. Lance *#gamecouple* pour démarrer.");
+    }
+    if (state.joueurs.length < 2) {
+      return repondre(
+        `⚠️ Il manque des joueurs ! (${state.joueurs.length}/2 inscrits)\n` +
+        "Tape : *#gamecouple join <ton_nom>*"
+      );
+    }
+
+    const poseur  = state.joueurs[state.joueur_actuel];
+    const cible   = state.joueurs[state.joueur_actuel === 0 ? 1 : 0];
+
+    // ─────────────────────────────────────────────
+    // SCORE
+    // ─────────────────────────────────────────────
+    if (arg[0] === "score") {
+      const j1 = state.joueurs[0];
+      const j2 = state.joueurs[1];
+      return repondre(
+        "📊 *Scores (refus) :*\n\n" +
+        `😅 *${j1.nom}* : ${state.refus[j1.nom]} refus\n` +
+        `😅 *${j2.nom}* : ${state.refus[j2.nom]} refus`
+      );
+    }
+
+    // ─────────────────────────────────────────────
+    // QUESTION PAR NUMÉRO
+    // ─────────────────────────────────────────────
+    const num = parseInt(arg[0]);
+    if (!isNaN(num)) {
+      if (state.en_attente_reponse) {
+        return repondre(
+          `⏳ En attente de validation sur la question précédente.\n` +
+          `Tape *#gamecouple valide* ou *#gamecouple refuse* d'abord.`
+        );
+      }
+      if (num < 1 || num > questionsGameCouple.length) {
+        return repondre(`⚠️ Numéro invalide. Choisis entre 1 et ${questionsGameCouple.length}.`);
+      }
+      const question = questionsGameCouple[num - 1];
+      state.en_attente_reponse = true;
+      state.question_actuelle  = { num, question };
+
+      return repondre(
+        `❓ *Question n°${num}* posée par *${poseur.nom}* à *${cible.nom}* :\n\n` +
+        `_${question}_\n\n` +
+        `➡️ *${cible.nom}*, réponds dans le chat !\n` +
+        `Puis *${poseur.nom}* tape *#gamecouple valide* ou *#gamecouple refuse*`
+      );
+    }
+
+    // ─────────────────────────────────────────────
+    // QUESTION ALÉATOIRE
+    // ─────────────────────────────────────────────
+    if (arg[0] === "random") {
+      if (state.en_attente_reponse) {
+        return repondre(
+          "⏳ En attente de validation sur la question précédente.\n" +
+          "Tape *#gamecouple valide* ou *#gamecouple refuse* d'abord."
+        );
+      }
+      const num    = Math.floor(Math.random() * questionsGameCouple.length) + 1;
+      const question = questionsGameCouple[num - 1];
+      state.en_attente_reponse = true;
+      state.question_actuelle  = { num, question };
+
+      return repondre(
+        `🎲 *Question aléatoire n°${num}* posée par *${poseur.nom}* à *${cible.nom}* :\n\n` +
+        `_${question}_\n\n` +
+        `➡️ *${cible.nom}*, réponds dans le chat !\n` +
+        `Puis *${poseur.nom}* tape *#gamecouple valide* ou *#gamecouple refuse*`
+      );
+    }
+
+    // ─────────────────────────────────────────────
+    // VALIDE
+    // ─────────────────────────────────────────────
+    if (arg[0] === "valide") {
+      if (!state.en_attente_reponse) {
+        return repondre("⚠️ Aucune question en attente de validation.");
+      }
+      state.en_attente_reponse = false;
+      state.joueur_actuel = state.joueur_actuel === 0 ? 1 : 0;
+      const prochain = state.joueurs[state.joueur_actuel];
+
+      return repondre(
+        `✅ Réponse validée !\n\n` +
+        `🎯 C'est maintenant au tour de *${prochain.nom}* de poser une question.\n` +
+        `Tape *#gamecouple <numéro>* ou *#gamecouple random*`
+      );
+    }
+
+    // ─────────────────────────────────────────────
+    // REFUSE
+    // ─────────────────────────────────────────────
+    if (arg[0] === "refuse") {
+      if (!state.en_attente_reponse) {
+        return repondre("⚠️ Aucune question en attente de validation.");
+      }
+      state.refus[cible.nom] = (state.refus[cible.nom] || 0) + 1;
+      state.en_attente_reponse = false;
+      state.joueur_actuel = state.joueur_actuel === 0 ? 1 : 0;
+      const prochain = state.joueurs[state.joueur_actuel];
+
+      return repondre(
+        `❌ *${cible.nom}* a refusé de répondre !\n\n` +
+        `😈 *${poseur.nom}*, c'est à toi de donner un gage maintenant !\n\n` +
+        `📊 Refus de *${cible.nom}* : *${state.refus[cible.nom]}*\n\n` +
+        `─────────────────────\n` +
+        `Après le gage, c'est *${prochain.nom}* qui pose la prochaine question.\n` +
+        `Tape *#gamecouple <numéro>* ou *#gamecouple random*`
+      );
+    }
+
+    // ─────────────────────────────────────────────
+    // FIN DE PARTIE
+    // ─────────────────────────────────────────────
+    if (arg[0] === "end") {
+      const j1 = state.joueurs[0];
+      const j2 = state.joueurs[1];
+      const gagnant =
+        state.refus[j1.nom] < state.refus[j2.nom]
+          ? j1.nom
+          : state.refus[j2.nom] < state.refus[j1.nom]
+          ? j2.nom
+          : null;
+
+      const recap =
+        `🏁 *Fin de la partie GameCouple !*\n\n` +
+        `📊 *Résultats finaux :*\n` +
+        `• *${j1.nom}* → ${state.refus[j1.nom]} refus\n` +
+        `• *${j2.nom}* → ${state.refus[j2.nom]} refus\n\n` +
+        (gagnant
+          ? `🏆 *${gagnant}* a le moins de refus — félicitations !\n\n`
+          : `🤝 Égalité parfaite entre les deux joueurs !\n\n`) +
+        `Merci d'avoir joué à *GameCouple* ❤️\n` +
+        `Lance une nouvelle partie avec *#gamecouple*`;
+
+      resetState(dest);
+      return repondre(recap);
+    }
+
+    // ─────────────────────────────────────────────
+    // COMMANDE INCONNUE
+    // ─────────────────────────────────────────────
+    return repondre(
+      "❓ Commande inconnue. Tape *#gamecouple help* pour voir les commandes disponibles."
+    );
+  }
+);
+
 console.log("✅ Ozen_Pack chargé avec succès ! (100+ commandes actives)");

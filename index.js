@@ -14,8 +14,6 @@ const fs = require("fs");
 const path = require("path");
 
 // ── RESTAURATION DE SESSION (Katabump / Serveur) ──────────────────────────
-// Définissez SESSION_ID dans les variables d'environnement Katabump.
-// Valeur = contenu de auth/creds.json encodé en Base64.
 const AUTH_PATH = path.join(__dirname, "auth");
 
 if (process.env.SESSION_ID) {
@@ -29,12 +27,38 @@ if (process.env.SESSION_ID) {
     }
 }
 
-// Les variables d'environnement ont priorité sur config.js
 const PREFIXE      = process.env.PREFIX        || conf.prefixe;
 const PHONE_NUMBER = process.env.PHONE_NUMBER  || null;
 
-const AUTORISES = conf.proprietaire.map(n => n.replace(/[^0-9]/g, ""));
+// ── GESTION DYNAMIQUE DES OWNERS ──────────────────────────────────────────
+// On charge depuis le fichier owners.json si il existe, sinon depuis config.js
+const OWNERS_FILE = path.join(__dirname, "owners.json");
 
+function chargerOwners() {
+    try {
+        if (fs.existsSync(OWNERS_FILE)) {
+            const data = JSON.parse(fs.readFileSync(OWNERS_FILE, "utf-8"));
+            return data.map(n => n.replace(/[^0-9]/g, ""));
+        }
+    } catch (e) {}
+    return conf.proprietaire.map(n => n.replace(/[^0-9]/g, ""));
+}
+
+function sauvegarderOwners(liste) {
+    try {
+        fs.writeFileSync(OWNERS_FILE, JSON.stringify(liste, null, 2));
+    } catch (e) {
+        console.error("❌ Erreur sauvegarde owners:", e.message);
+    }
+}
+
+// Propriétaire principal (ne peut jamais être retiré)
+const OWNER_PRINCIPAL = conf.OWNER.replace(/[^0-9]/g, "");
+
+// Commandes accessibles à tous même en mode privé
+const COMMANDES_PUBLIQUES = (conf.commandesPubliques || []).map(c => c.toLowerCase());
+
+// ── EXTRACTION DU NUMÉRO DEPUIS UN JID ────────────────────────────────────
 function extraireNum(jid) {
     if (!jid) return '';
     const sansAt = jid.split('@')[0];
@@ -45,7 +69,6 @@ function extraireNum(jid) {
     return parties.join('');
 }
 
-// isTTY = terminal local | !isTTY = serveur (Katabump, etc.)
 const IS_SERVER = !process.stdin.isTTY;
 
 async function startOzen() {
@@ -67,11 +90,10 @@ async function startOzen() {
     // ── AUTHENTIFICATION ─────────────────────────────────────────────────
     if (!zk.authState.creds.registered) {
         if (IS_SERVER) {
-            // Mode serveur : Pairing Code automatique via PHONE_NUMBER
             if (!PHONE_NUMBER) {
                 console.error("❌ Bot non authentifié sur le serveur.");
                 console.error("   → Définissez SESSION_ID (recommandé)");
-                console.error("     ou PHONE_NUMBER dans les variables d'environnement Katabump.");
+                console.error("     ou PHONE_NUMBER dans les variables d'environnement.");
                 process.exit(1);
             }
             const phoneClean = PHONE_NUMBER.replace(/\D/g, "");
@@ -80,14 +102,11 @@ async function startOzen() {
                 const code = await zk.requestPairingCode(phoneClean);
                 console.log(`\n🌀 Code de jumelage OZEN-MD : ${code}`);
                 console.log("⚠️  Entrez ce code sur WhatsApp dans les 60 secondes !");
-                console.log("   Puis récupérez auth/creds.json, encodez-le en Base64,");
-                console.log("   et définissez-le comme SESSION_ID dans Katabump.");
             } catch (err) {
                 console.error("❌ Erreur pairing :", err.message);
                 process.exit(1);
             }
         } else {
-            // Mode local interactif (développement)
             const readline = require("readline");
             const question = (text) => new Promise((resolve) => {
                 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -146,9 +165,11 @@ async function startOzen() {
                 process.exit(0);
             }
         } else if (connection === "open") {
+            const owners = chargerOwners();
             console.log(`✅ OZEN-MD connecté !`);
-            console.log(`🔐 Numéros autorisés : ${AUTORISES.join(", ")}`);
-            console.log(`👁️  Visionnage automatique des statuts : ACTIVÉ`);
+            console.log(`🔐 Mode : ${conf.MODE}`);
+            console.log(`👑 Owners : ${owners.join(", ")}`);
+            console.log(`🌐 Commandes publiques : ${COMMANDES_PUBLIQUES.join(", ") || "aucune"}`);
         }
     });
 
@@ -182,33 +203,102 @@ async function startOzen() {
         const dest = ms.key.remoteJid;
         const repondre = (txt) => zk.sendMessage(dest, { text: String(txt) }, { quoted: ms });
 
+        // ── IDENTIFICATION DE L'AUTEUR ──────────────────────────────────
+        // BUG CORRIGÉ : on lit les owners depuis le fichier dynamique à chaque message
+        const AUTORISES = chargerOwners();
+
         const estFromMe = ms.key.fromMe;
         let auteurNum = "";
 
         if (estFromMe) {
-            auteurNum = AUTORISES[0];
+            // Message envoyé depuis le téléphone du bot → c'est forcément l'owner principal
+            auteurNum = OWNER_PRINCIPAL;
         } else {
+            // BUG CORRIGÉ : en groupe, le JID de l'auteur est dans ms.key.participant
+            // En privé, c'est ms.key.remoteJid (ex: 225XXXXXX@s.whatsapp.net)
             const jidBrut = ms.key.participant || ms.key.remoteJid || "";
             auteurNum = extraireNum(jidBrut);
         }
 
-        console.log(`\n📩 Commande : "${texte}" | fromMe: ${estFromMe} | auteur: ${auteurNum}`);
+        const auteurNumPropre = auteurNum.replace(/[^0-9]/g, "");
+        console.log(`\n📩 Commande : "${texte}" | fromMe: ${estFromMe} | auteur: ${auteurNumPropre}`);
 
-        const estAutorise = estFromMe || AUTORISES.includes(auteurNum.replace(/[^0-9]/g, ""));
-        if (!estAutorise) {
-            console.log(`🚫 Accès refusé pour : ${auteurNum}`);
-            return repondre(`🚫 *ACCÈS REFUSÉ*\n\nCe bot est privé.\n_OZEN-MD_`);
-        }
-
-        console.log(`✅ Accès accordé pour : ${auteurNum}`);
-
+        // ── EXTRACTION DE LA COMMANDE ───────────────────────────────────
         const arg = texte.slice(PREFIXE.length).trim().split(/ +/);
         const command = arg.shift().toLowerCase();
+
+        // ── VÉRIFICATION DES PERMISSIONS ───────────────────────────────
+        const estOwner = estFromMe || AUTORISES.includes(auteurNumPropre);
+        const estCommandePublique = COMMANDES_PUBLIQUES.includes(command);
+        const modePublic = (conf.MODE || "private") === "public";
+
+        // Accès autorisé si :
+        // 1. L'auteur est owner
+        // 2. Le mode est "public"
+        // 3. La commande est dans la liste des commandes publiques (peu importe le mode)
+        const estAutorise = estOwner || modePublic || estCommandePublique;
+
+        if (!estAutorise) {
+            console.log(`🚫 Accès refusé pour : ${auteurNumPropre}`);
+            return repondre(`🚫 *ACCÈS REFUSÉ*\n\nCe bot est en mode privé.\n_OZEN-MD_`);
+        }
+
+        console.log(`✅ Accès accordé pour : ${auteurNumPropre} (owner: ${estOwner}, public: ${modePublic}, cmdPublique: ${estCommandePublique})`);
+
+        // ── RECHERCHE DE LA COMMANDE ────────────────────────────────────
         const cmd = cm.find(c => c.nomCom === command || (c.alias && c.alias.includes(command)));
         if (!cmd) return;
 
-        const auteurMessage = auteurNum + "@s.whatsapp.net";
-        const superUser = true;
+        // ── COMMANDES INTÉGRÉES : GESTION DES OWNERS ───────────────────
+        // Ces commandes sont traitées ici pour avoir accès direct à AUTORISES et la sauvegarde
+
+        // #addowner <numéro> — Ajouter un owner (owner principal seulement)
+        if (command === "addowner") {
+            if (auteurNumPropre !== OWNER_PRINCIPAL) {
+                return repondre("🚫 Seul l'owner principal peut ajouter des owners.");
+            }
+            const nouveauNum = (arg[0] || "").replace(/[^0-9]/g, "");
+            if (!nouveauNum) return repondre("⚠️ Usage : *#addowner <numéro>*\nEx: #addowner 2250XXXXXXXXX");
+            const owners = chargerOwners();
+            if (owners.includes(nouveauNum)) {
+                return repondre(`⚠️ *${nouveauNum}* est déjà owner.`);
+            }
+            owners.push(nouveauNum);
+            sauvegarderOwners(owners);
+            console.log(`👑 Nouveau owner ajouté : ${nouveauNum}`);
+            return repondre(`✅ *+${nouveauNum}* a été ajouté comme owner.\n\n👑 Owners actuels :\n${owners.map(n => `• +${n}`).join("\n")}`);
+        }
+
+        // #removeowner <numéro> — Retirer un owner (owner principal seulement)
+        if (command === "removeowner") {
+            if (auteurNumPropre !== OWNER_PRINCIPAL) {
+                return repondre("🚫 Seul l'owner principal peut retirer des owners.");
+            }
+            const numRetirer = (arg[0] || "").replace(/[^0-9]/g, "");
+            if (!numRetirer) return repondre("⚠️ Usage : *#removeowner <numéro>*\nEx: #removeowner 2250XXXXXXXXX");
+            if (numRetirer === OWNER_PRINCIPAL) {
+                return repondre("🚫 Impossible de retirer l'owner principal.");
+            }
+            const owners = chargerOwners();
+            const index = owners.indexOf(numRetirer);
+            if (index === -1) {
+                return repondre(`⚠️ *${numRetirer}* n'est pas dans la liste des owners.`);
+            }
+            owners.splice(index, 1);
+            sauvegarderOwners(owners);
+            console.log(`👑 Owner retiré : ${numRetirer}`);
+            return repondre(`✅ *+${numRetirer}* a été retiré des owners.\n\n👑 Owners restants :\n${owners.map(n => `• +${n}`).join("\n")}`);
+        }
+
+        // #owners — Lister les owners actuels
+        if (command === "owners") {
+            const owners = chargerOwners();
+            return repondre(`👑 *LISTE DES OWNERS*\n\n${owners.map((n, i) => `${i === 0 ? "🔑" : "👤"} +${n}${i === 0 ? " (principal)" : ""}`).join("\n")}\n\n_Total : ${owners.length} owner(s)_`);
+        }
+
+        // ── CONTEXTE DE LA COMMANDE ─────────────────────────────────────
+        const auteurMessage = auteurNumPropre + "@s.whatsapp.net";
+        const superUser = estOwner; // true si owner, false si simple utilisateur en mode public
         const verifGroupe = dest.endsWith("@g.us");
         let infosGroupe = null;
         let verifAdmin = false;
@@ -216,7 +306,7 @@ async function startOzen() {
         if (verifGroupe) {
             try {
                 infosGroupe = await zk.groupMetadata(dest);
-                const p = infosGroupe.participants.find(p => extraireNum(p.id) === auteurNum);
+                const p = infosGroupe.participants.find(p => extraireNum(p.id) === auteurNumPropre);
                 verifAdmin = p?.admin === "admin" || p?.admin === "superadmin";
             } catch (e) {}
         }
@@ -230,7 +320,11 @@ async function startOzen() {
             ms, arg, repondre, mtype, prefixe: PREFIXE,
             verifGroupe, verifAdmin, infosGroupe,
             nomGroupe: infosGroupe ? infosGroupe.subject : "",
-            auteurMessage, msgRepondu, auteurMsgRepondu, superUser
+            auteurMessage, msgRepondu, auteurMsgRepondu, superUser,
+            // Infos utiles supplémentaires
+            estOwner,
+            ownerPrincipal: OWNER_PRINCIPAL,
+            sender: auteurNumPropre,
         };
 
         try {
