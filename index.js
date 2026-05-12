@@ -28,7 +28,7 @@ if (process.env.SESSION_ID) {
 }
 
 const PREFIXE      = process.env.PREFIX        || conf.prefixe;
-const PHONE_NUMBER = process.env.PHONE_NUMBER  || null;
+const PHONE_NUMBER = process.env.PHONE_NUMBER  ="";
 
 // ── GESTION DYNAMIQUE DES OWNERS ──────────────────────────────────────────
 // On charge depuis le fichier owners.json si il existe, sinon depuis config.js

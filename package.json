@@ -12,7 +12,7 @@
   "keywords": [],
   "author": "gninoue-dev",
   "license": "ISC",
-  "description": "OZEN-MD WhatsApp Bot - Compatible Katabump",
+  "description": "OZEN-MD WhatsApp Bot",
   "dependencies": {
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "axios": "^1.15.2",
