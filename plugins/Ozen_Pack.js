@@ -10,7 +10,7 @@ const axios = require("axios");
 const fs = require("fs");
 const path = require('path');
 
-// ============ UTILITAIRE : Vérifie si le bot (connecté avec ton numéro) est admin ============
+// UTILITAIRE : Vérifie si le bot (connecté avec ton numéro) est admin
 function botEstAdmin(infosGroupe, zk) {
     // DEBUG: Voir le format de l'ID du bot
     console.log("🔍 zk.user.id:", zk.user.id);
@@ -30,7 +30,7 @@ function botEstAdmin(infosGroupe, zk) {
     return botParticipant?.admin === "admin" || botParticipant?.admin === "superadmin";
 }
 
-// ============ COMMANDE MENU (DYNAMIQUE) ============
+// COMMANDE MENU (DYNAMIQUE)
 zokou(
   {
     nomCom: "menu",
@@ -2107,6 +2107,130 @@ zokou(
     // ─────────────────────────────────────────────
     return repondre(
       "❓ Commande inconnue. Tape *#gamecouple help* pour voir les commandes disponibles."
+    );
+  }
+);
+
+// ============ ADDOWNER ============
+zokou(
+  {
+    nomCom: "addowner",
+    categorie: "Owner",
+    reaction: "👑",
+    desc: "Ajouter un nouveau owner",
+    plugin: "Ozen_Pack",
+  },
+  async (dest, zk, ops) => {
+    const { arg, repondre, ownerPrincipal, sender } = ops;
+    if (sender !== ownerPrincipal) {
+      return repondre("🚫 Seul l'owner principal peut ajouter des owners.");
+    }
+    const nouveauNum = (arg[0] || "").replace(/[^0-9]/g, "");
+    if (!nouveauNum) return repondre("⚠️ Usage : *#addowner <numéro>*\nEx: #addowner 2250XXXXXXXXX");
+
+    const fs = require("fs");
+    const path = require("path");
+    const conf = require("../config");
+    const OWNERS_FILE = path.join(__dirname, "../owners.json");
+
+    let owners = [];
+    try {
+      if (fs.existsSync(OWNERS_FILE)) {
+        owners = JSON.parse(fs.readFileSync(OWNERS_FILE, "utf-8")).map(n => n.replace(/[^0-9]/g, ""));
+      } else {
+        owners = conf.proprietaire.map(n => n.replace(/[^0-9]/g, ""));
+      }
+    } catch (e) { owners = conf.proprietaire.map(n => n.replace(/[^0-9]/g, "")); }
+
+    if (owners.includes(nouveauNum)) {
+      return repondre(`⚠️ *+${nouveauNum}* est déjà owner.`);
+    }
+    owners.push(nouveauNum);
+    fs.writeFileSync(OWNERS_FILE, JSON.stringify(owners, null, 2));
+    return repondre(
+      `✅ *+${nouveauNum}* ajouté comme owner.\n\n` +
+      `👑 Owners actuels :\n${owners.map(n => `• +${n}`).join("\n")}`
+    );
+  }
+);
+
+// ============ REMOVEOWNER ============
+zokou(
+  {
+    nomCom: "removeowner",
+    categorie: "Owner",
+    reaction: "🗑️",
+    desc: "Retirer un owner",
+    plugin: "Ozen_Pack",
+  },
+  async (dest, zk, ops) => {
+    const { arg, repondre, ownerPrincipal, sender } = ops;
+    if (sender !== ownerPrincipal) {
+      return repondre("🚫 Seul l'owner principal peut retirer des owners.");
+    }
+    const numRetirer = (arg[0] || "").replace(/[^0-9]/g, "");
+    if (!numRetirer) return repondre("⚠️ Usage : *#removeowner <numéro>*\nEx: #removeowner 2250XXXXXXXXX");
+    if (numRetirer === ownerPrincipal) {
+      return repondre("🚫 Impossible de retirer l'owner principal.");
+    }
+
+    const fs = require("fs");
+    const path = require("path");
+    const conf = require("../config");
+    const OWNERS_FILE = path.join(__dirname, "../owners.json");
+
+    let owners = [];
+    try {
+      if (fs.existsSync(OWNERS_FILE)) {
+        owners = JSON.parse(fs.readFileSync(OWNERS_FILE, "utf-8")).map(n => n.replace(/[^0-9]/g, ""));
+      } else {
+        owners = conf.proprietaire.map(n => n.replace(/[^0-9]/g, ""));
+      }
+    } catch (e) { owners = conf.proprietaire.map(n => n.replace(/[^0-9]/g, "")); }
+
+    const index = owners.indexOf(numRetirer);
+    if (index === -1) {
+      return repondre(`⚠️ *+${numRetirer}* n'est pas dans la liste des owners.`);
+    }
+    owners.splice(index, 1);
+    fs.writeFileSync(OWNERS_FILE, JSON.stringify(owners, null, 2));
+    return repondre(
+      `✅ *+${numRetirer}* retiré des owners.\n\n` +
+      `👑 Owners restants :\n${owners.map(n => `• +${n}`).join("\n")}`
+    );
+  }
+);
+
+// ============ OWNERS ============
+zokou(
+  {
+    nomCom: "owners",
+    categorie: "Owner",
+    reaction: "👑",
+    desc: "Lister tous les owners",
+    plugin: "Ozen_Pack",
+  },
+  async (dest, zk, ops) => {
+    const { repondre, ownerPrincipal } = ops;
+
+    const fs = require("fs");
+    const path = require("path");
+    const conf = require("../config");
+    const OWNERS_FILE = path.join(__dirname, "../owners.json");
+
+    let owners = [];
+    try {
+      if (fs.existsSync(OWNERS_FILE)) {
+        owners = JSON.parse(fs.readFileSync(OWNERS_FILE, "utf-8")).map(n => n.replace(/[^0-9]/g, ""));
+      } else {
+        owners = conf.proprietaire.map(n => n.replace(/[^0-9]/g, ""));
+      }
+    } catch (e) { owners = conf.proprietaire.map(n => n.replace(/[^0-9]/g, "")); }
+
+    return repondre(
+      `👑 *LISTE DES OWNERS*\n\n` +
+      `${owners.map((n, i) => `${n === ownerPrincipal ? "🔑" : "👤"} +${n}${n === ownerPrincipal ? " _(principal)_" : ""}`).join("\n")}\n\n` +
+      `_Total : ${owners.length} owner(s)_`
     );
   }
 );
