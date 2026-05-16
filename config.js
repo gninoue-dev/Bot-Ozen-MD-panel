@@ -12,5 +12,5 @@ module.exports = {
     MODE: "private",  // "private" = seuls les owners utilisent le bot
                       // "public"  = tout le monde peut utiliser le bot
     // Commandes accessibles à TOUS même en mode privé
-    commandesPubliques: ["gamecouple", "gc", "ping"],
+    commandesPubliques: ["menu", "help", "ping"],
 };
