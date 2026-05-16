@@ -30,7 +30,11 @@ function botEstAdmin(infosGroupe, zk) {
     return botParticipant?.admin === "admin" || botParticipant?.admin === "superadmin";
 }
 
-// COMMANDE MENU (DYNAMIQUE)
+// ════════════════════════════════════════════════════════
+//  COMMANDE MENU — rendu dynamique selon le thème actif
+// ════════════════════════════════════════════════════════
+const { getTheme } = require("../themes");
+
 zokou(
   {
     nomCom: "menu",
@@ -41,52 +45,142 @@ zokou(
     alias: ["help", "aide", "menus"]
   },
   async (dest, zk, ops) => {
-    const { auteurMessage, prefixe, superUser } = ops;
+    const { auteurMessage, prefixe, superUser, ms } = ops;
     const { cm: toutesLesCommandes } = require("../framework/ozen");
+    const conf = require("../config");
     const numero = auteurMessage.split("@")[0];
+    const nomBot = conf.nomBot || "OZEN-MD";
 
-    // Icônes par catégorie
-    const icones = {
-      "General":    "📋",
-      "Utiles":     "🔧",
-      "Fun":        "🎮",
-      "IA/Fun":     "🤖",
-      "Media":      "🖼️",
-      "Musique":    "🎵",
-      "Admin":      "👮",
-      "Owner":      "⚙️",
-    };
+    // ── Charger le thème actif ──────────────────────────────────────────
+    const T  = getTheme();
+    const B  = T.bordures;
+    const TX = T.textes;
 
-    // Catégories cachées aux non-owners
+    // ── Regrouper les commandes par catégorie ───────────────────────────
     const categoriesOwner = ["Owner"];
-
-    // Regrouper les commandes par catégorie
     const parCategorie = {};
     for (const cmd of toutesLesCommandes) {
       const cat = cmd.categorie || "Général";
-      // Cacher les commandes Owner aux non-owners
       if (categoriesOwner.includes(cat) && !superUser) continue;
       if (!parCategorie[cat]) parCategorie[cat] = [];
       parCategorie[cat].push(cmd);
     }
 
-    // Construire le menu
-    let menu = `✨ *OZEN-MD* ✨\n_Le bot WhatsApp ultime_\n\n`;
-    menu += `👋 Salut *+${numero}* !\n`;
-    menu += `📦 *${toutesLesCommandes.length} commandes disponibles*\n\n`;
+    // ── Construire le menu avec le thème ───────────────────────────────
+    let menu = "";
+    menu += `${B.tl}${B.h}${B.tr}\n`;
+    menu += `${B.v}  ${TX.titreLigne1(nomBot)}  ${B.v}\n`;
+    menu += `${B.v}  ${TX.titreLigne2()}  ${B.v}\n`;
+    menu += `${B.ml}${B.h}${B.mr}\n`;
+    menu += `${B.v}  ${TX.soldat(numero)}\n`;
+    menu += `${B.v}  ${TX.arsenal(toutesLesCommandes.length)}\n`;
+    menu += `${B.v}  ${TX.prefixe(prefixe)}\n`;
+    menu += `${B.ml}${B.h}${B.mr}\n`;
+    menu += `${B.v}  ${TX.citation()}\n`;
+    menu += `${B.bl}${B.h}${B.br}\n\n`;
 
     for (const [cat, cmds] of Object.entries(parCategorie)) {
-      const icone = icones[cat] || "▪️";
-      menu += `${icone} *${cat.toUpperCase()}*\n`;
+      const icone = T.icones[cat] || T.icones["_defaut"] || "▪️";
+      menu += `${B.sl}─${B.hm}\n`;
+      menu += `${TX.catTitre(icone, cat, cmds.length)}\n`;
+      menu += `${B.sm}─${B.hm}\n`;
       for (const cmd of cmds) {
-        const desc = cmd.desc ? ` - ${cmd.desc}` : "";
-        menu += `◈ ${prefixe}${cmd.nomCom}${desc}\n`;
+        menu += `${TX.cmdLigne(prefixe, cmd.nomCom, cmd.desc || "")}\n`;
       }
-      menu += `\n`;
+      menu += `${B.el}─${B.hm}\n\n`;
     }
 
-    menu += `_Propulsé par OZEN-MD 🚀_`;
-    await zk.sendMessage(dest, { text: menu }, { quoted: ops.ms });
+    menu += `${B.tl}${B.h}${B.tr}\n`;
+    menu += `${B.v}  ${TX.footer1(nomBot)}\n`;
+    menu += `${B.v}  ${TX.footer2()}\n`;
+    menu += `${B.v}  ${TX.footer3()}\n`;
+    menu += `${B.bl}${B.h}${B.br}`;
+
+    // ── Envoyer : média + menu en caption (tout en un seul message) ─────
+    const media = T.media || { type: "none" };
+
+    if (media.type === "video") {
+      try {
+        await zk.sendMessage(dest, {
+          video: { url: media.url },
+          gifPlayback: media.gifPlayback || false,
+          caption: menu,
+        }, { quoted: ms });
+        return;
+      } catch (_) { /* fallback */ }
+    }
+
+    if (media.type === "video" || media.type === "image") {
+      try {
+        await zk.sendMessage(dest, {
+          image: { url: media.fallbackUrl || media.url },
+          caption: menu,
+        }, { quoted: ms });
+        return;
+      } catch (_) { /* fallback texte */ }
+    }
+
+    // Thème "none" ou tous les médias ont échoué → texte seul
+    await zk.sendMessage(dest, { text: menu }, { quoted: ms });
+  }
+);
+
+// ════════════════════════════════════════════════════════
+//  COMMANDE THEME — changer le style du menu à la volée
+// ════════════════════════════════════════════════════════
+zokou(
+  {
+    nomCom: "theme",
+    categorie: "Owner",
+    reaction: "🎨",
+    desc: "Changer le thème visuel du menu",
+    plugin: "Ozen_Pack",
+    alias: ["themes", "style"]
+  },
+  async (dest, zk, ops) => {
+    const { arg, repondre, superUser, ms } = ops;
+    const { getTheme, getThemeActif, setThemeActif, chargerTheme, listerThemes } = require("../themes");
+
+    if (!superUser) return repondre("🚫 Commande réservée aux owners.");
+
+    const themesDispo = listerThemes();
+    const actif = getThemeActif();
+
+    // Sans argument → afficher la liste
+    if (!arg[0]) {
+      let liste = `🎨 *THÈMES DISPONIBLES*\n\n`;
+      for (const nom of themesDispo) {
+        const t = chargerTheme(nom);
+        const estActif = nom === actif;
+        liste += `${estActif ? "✅" : "◈"} *${nom}*`;
+        if (t && t.nomComplet) liste += ` — ${t.nomComplet}`;
+        if (t && t.description) liste += `\n   _${t.description}_`;
+        liste += `\n`;
+      }
+      liste += `\n_Usage : #theme <nom>_\n`;
+      liste += `_Ex : #theme naruto_\n\n`;
+      liste += `_Pour créer ton propre thème,\ncopie un fichier dans themes/ et modifie-le !_`;
+      return repondre(liste);
+    }
+
+    const nomChoisi = arg[0].toLowerCase();
+
+    if (!themesDispo.includes(nomChoisi)) {
+      return repondre(`❌ Thème *${nomChoisi}* introuvable.\n\nThèmes disponibles : ${themesDispo.join(", ")}`);
+    }
+
+    if (nomChoisi === actif) {
+      return repondre(`ℹ️ Le thème *${nomChoisi}* est déjà actif !`);
+    }
+
+    setThemeActif(nomChoisi);
+    const nouveau = chargerTheme(nomChoisi);
+    await repondre(
+      `✅ *Thème changé !*\n\n` +
+      `🎨 Nouveau thème : *${nouveau.nomComplet || nomChoisi}*\n` +
+      `_${nouveau.description || ""}_\n\n` +
+      `_Tape #menu pour voir le résultat !_`
+    );
   }
 );
 
