@@ -60,7 +60,7 @@ module.exports = {
         footer1: (nomBot) => `🔥 *${nomBot}* — _Propulsé par_`,
         footer2: ()       => `_gninoue-dev • Baileys Framework_`,
         footer3: ()       =>
-            `_⚡ PLUS ULTRA  •  ⚔️ BANKAI  •  ☠️ GOMU GOMU_`,
+            `_⚡ KAMEHAMEHA  •  ⚔️ BANKAI  •  ☠️ GOMU GOMU_`,
         cmdLigne: (prefixe, nomCom, desc) =>
             `│ ◈ *${prefixe}${nomCom}*${desc ? `  ↳ _${desc}_` : ""}`,
         catTitre: (icone, cat, n) =>
