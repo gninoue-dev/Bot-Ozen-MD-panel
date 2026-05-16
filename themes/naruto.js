@@ -12,13 +12,13 @@ module.exports = {
 
     // ── Média d'intro ──────────────────────────
     // → Dépose ton fichier dans resources/naruto/ puis ajuste le nom ici
-    media: {
-        type: "image",
-        url:  "./resources/naruto/menu.gif",
+     media: {
+        type: "video",        // "video" | "image" | "none"
+        url:  "./resources/naruto/menu.mp4",
+        gifPlayback: true,
         fallbackUrl:  "./resources/naruto/menu.gif",
         fallbackType: "image",
     },
-
     // ── Icônes par catégorie ───────────────────
     icones: {
         "General":  "📜",

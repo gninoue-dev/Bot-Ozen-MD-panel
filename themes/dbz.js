@@ -13,8 +13,8 @@ module.exports = {
     // ── Média d'intro ──────────────────────────
     // → Dépose ton fichier dans resources/dbz/ puis ajuste le nom ici
     media: {
-        type: "image",
-        url:  "./resources/dbz/menu.gif",
+        type: "video",
+        url:  "./resources/dbz/menu",
         fallbackUrl:  "./resources/dbz/menu.gif",
         fallbackType: "image",
     },
